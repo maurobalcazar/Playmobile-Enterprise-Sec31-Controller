@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Section 31 Ship Command User Interface</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000; color: #e0e0e0; font-family: 'AudibleSans', -apple-system, sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden;
+    -webkit-user-select: none; user-select: none;
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(180deg, #1a1a2e 0%, #0a0a1a 100%);
+    border-bottom: 2px solid #4a6cf7;
+    padding: 12px 16px; display: flex; align-items: center; gap: 12px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header .ship-icon {
+    font-size: 22px; color: #4a6cf7; font-weight: 900;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px;
+  }
+  .header .title { font-size: 18px; font-weight: 700; color: #fff; flex: 1; }
+  .status {
+    font-size: 12px; padding: 4px 10px; border-radius: 12px;
+    background: #333; color: #888; font-weight: 600; cursor: pointer;
+    transition: all 0.3s;
+  }
+  .status.connected { background: #0a3d0a; color: #4cff4c; }
+  .status.connecting { background: #3d3d0a; color: #ffff4c; animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: 0.5; } }
+
+  /* Connection panel */
+  .connect-panel {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    flex: 1; gap: 20px; padding: 40px 20px;
+  }
+  .connect-panel .ship-art { font-size: 80px; opacity: 0.7; }
+  .connect-panel p { color: #888; text-align: center; max-width: 600px; line-height: 1.5; }
+
+  /* Compatibility info */
+  .compat-box {
+    background: #0d0d1a; border: 1px solid #222; border-radius: 12px;
+    padding: 16px 20px; max-width: 600px; width: 100%; text-align: left;
+  }
+  .compat-box h3 { color: #4a6cf7; font-size: 13px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .compat-row {
+    display: flex; align-items: flex-start; gap: 10px; padding: 6px 0;
+    border-bottom: 1px solid #1a1a2e; font-size: 12px; line-height: 1.5;
+  }
+  .compat-row:last-child { border-bottom: none; }
+  .compat-row .platform { color: #ccc; font-weight: 600; min-width: 90px; flex-shrink: 0; }
+  .compat-row .detail { color: #888; }
+  .compat-row .yes { color: #4cff4c; }
+  .compat-row .no { color: #ff6666; }
+  .compat-row .workaround { color: #ffcc44; }
+  .connect-btn {
+    background: linear-gradient(135deg, #4a6cf7, #6a3de8);
+    color: #fff; border: none; padding: 14px 36px; border-radius: 12px;
+    font-size: 16px; font-weight: 700; cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .connect-btn:active { transform: scale(0.95); }
+  .connect-btn:hover { box-shadow: 0 0 20px rgba(74,108,247,0.4); }
+
+  /* Main controls */
+  .controls { display: none; flex-direction: column; flex: 1; padding-bottom: 20px; }
+
+  /* Category tabs */
+  .tabs {
+    display: flex; overflow-x: auto; gap: 4px; padding: 10px 12px;
+    border-bottom: 1px solid #222; background: #0a0a1a;
+    position: sticky; top: 56px; z-index: 99;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex-shrink: 0; padding: 8px 14px; border-radius: 8px;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    background: #1a1a2e; color: #888; border: 1px solid #222;
+    transition: all 0.2s; white-space: nowrap;
+  }
+  .tab.active { background: #4a6cf7; color: #fff; border-color: #4a6cf7; }
+
+  /* Command grid */
+  .cmd-section { padding: 12px; display: none; }
+  .cmd-section.active { display: block; }
+  .cmd-section h3 { color: #4a6cf7; font-size: 13px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .cmd-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+
+  .cmd-btn {
+    background: #1a1a2e; border: 1px solid #2a2a4e; border-radius: 10px;
+    padding: 14px 10px; cursor: pointer; transition: all 0.15s;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    text-align: center; position: relative; overflow: hidden;
+  }
+  .cmd-btn:active { transform: scale(0.95); background: #2a2a4e; }
+  .cmd-btn .icon { font-size: 24px; }
+  .cmd-btn .label { font-size: 11px; font-weight: 600; color: #ccc; line-height: 1.3; }
+  .cmd-btn .sub { font-size: 9px; color: #666; }
+  .cmd-btn.audio { border-color: #2a4a2e; }
+  .cmd-btn.audio:active { background: #1a3a1e; }
+  .cmd-btn.light { border-color: #4a4a2a; }
+  .cmd-btn.light:active { background: #3a3a1a; }
+  .cmd-btn.mixed { border-color: #4a2a4a; }
+  .cmd-btn.mixed:active { background: #3a1a3a; }
+  .cmd-btn.off { border-color: #4a2a2a; }
+  .cmd-btn.off:active { background: #3a1a1a; }
+  .cmd-btn .label-off { color: #ff6666; }
+
+  /* Ripple */
+  .cmd-btn .ripple {
+    position: absolute; border-radius: 50%; background: rgba(74,108,247,0.3);
+    transform: scale(0); animation: rippleAnim 0.5s ease-out;
+    pointer-events: none;
+  }
+  @keyframes rippleAnim { to { transform: scale(4); opacity: 0; } }
+
+  /* Brightness/Volume slider panel */
+  .slider-panel {
+    padding: 12px 16px; background: #0d0d1a; border-top: 1px solid #222;
+    display: none;
+  }
+  .slider-panel.visible { display: block; }
+  .slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .slider-row label { font-size: 12px; color: #888; width: 80px; flex-shrink: 0; }
+  .slider-row input[type=range] { flex: 1; accent-color: #4a6cf7; }
+  .slider-row .val { font-size: 12px; color: #4a6cf7; width: 36px; text-align: right; }
+
+  /* Log */
+  .log-toggle {
+    text-align: center; padding: 8px; font-size: 11px; color: #555;
+    cursor: pointer; border-top: 1px solid #111;
+  }
+  .log { display: none; max-height: 120px; overflow-y: auto; padding: 8px 12px; background: #050510; font-family: monospace; font-size: 10px; color: #555; }
+  .log.visible { display: block; }
+  .log div { padding: 1px 0; }
+  .log .ok { color: #4cff4c; }
+  .log .err { color: #ff4c4c; }
+  .log .info { color: #4c8cff; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <span class="ship-icon"><svg viewBox="0 0 120 160" width="21" height="28" fill="#ffffff"><path d="M60 0 C56 15 44 50 30 85 C16 120 4 148 0 160 C12 152 28 140 44 130 C52 125 57 122 60 118 C63 122 68 125 76 130 C92 140 108 152 120 160 C116 148 104 120 90 85 C76 50 64 15 60 0Z"/></svg></span>
+  <span class="title">Section 31 Ship Command User Interface</span>
+  <span class="status" id="status" onclick="toggleConnection()">DISCONNECTED</span>
+</div>
+
+<!-- Connect screen -->
+<div class="connect-panel" id="connectPanel">
+  <div class="ship-art"><svg viewBox="0 0 200 160" width="160" height="128">
+    <!-- Large 4-point star -->
+    <g transform="translate(70,80)">
+      <path d="M0,-60 C4,-20 20,-4 60,0 C20,4 4,20 0,60 C-4,20 -20,4 -60,0 C-20,-4 -4,-20 0,-60Z" fill="#ffffff" opacity="0.7"/>
+    </g>
+    <!-- Medium star upper-right -->
+    <g transform="translate(145,38)">
+      <path d="M0,-25 C2,-8 8,-2 25,0 C8,2 2,8 0,25 C-2,8 -8,2 -25,0 C-8,-2 -2,-8 0,-25Z" fill="#ffffff" opacity="0.7"/>
+    </g>
+    <!-- Small star lower-right -->
+    <g transform="translate(160,90)">
+      <path d="M0,-14 C1,-5 5,-1 14,0 C5,1 1,5 0,14 C-1,5 -5,1 -14,0 C-5,-1 -1,-5 0,-14Z" fill="#ffffff" opacity="0.7"/>
+    </g>
+  </svg></div>
+  <p>Scan for the nearest Starfleet vessel and take command of the bridge.</p>
+  <button class="connect-btn" onclick="connectShip()">SCAN &amp; CONNECT</button>
+
+  <div class="compat-box">
+    <h3>📡 Compatibility</h3>
+    <div class="compat-row">
+      <span class="platform">💻 Windows</span>
+      <span class="detail"><span class="yes">✓</span> Chrome or Edge — works out of the box. Needs Bluetooth adapter.</span>
+    </div>
+    <div class="compat-row">
+      <span class="platform">🍎 macOS</span>
+      <span class="detail"><span class="yes">✓</span> Chrome or Edge. Brave not supported (Web Bluetooth blocked).</span>
+    </div>
+    <div class="compat-row">
+      <span class="platform">🐧 Linux</span>
+      <span class="detail"><span class="yes">✓</span> Chrome with <code style="color:#4a6cf7;font-size:11px;">chrome://flags/#enable-web-bluetooth</code> enabled.</span>
+    </div>
+    <div class="compat-row">
+      <span class="platform">🤖 Android</span>
+      <span class="detail"><span class="yes">✓</span> Chrome — works natively, no extra setup needed.</span>
+    </div>
+    <div class="compat-row">
+      <span class="platform">📱 iOS</span>
+      <span class="detail"><span class="workaround">⚠</span> Safari &amp; Chrome don't support Web Bluetooth. Install <a href="https://apps.apple.com/app/bluefy-web-ble-browser/id1492822055" target="_blank" style="color:#4a6cf7;">Bluefy</a> (Web BLE browser, ~$2). Then either:<br>
+      <span style="color:#aaa;">① AirDrop this HTML file to your iPhone → open in Bluefy from Files app, or<br>
+      ② On your computer, run <code style="color:#4a6cf7;font-size:11px;">python3 -m http.server 8000</code> in the folder with this file → on iPhone in Bluefy, go to <code style="color:#4a6cf7;font-size:11px;">http://&lt;your-computer-ip&gt;:8000/enterprise-controller.html</code> (both devices must be on the same Wi-Fi).</span><br>
+      Your iPhone's Bluetooth connects directly to the ship — the computer just serves the file.</span>
+    </div>
+  </div>
+
+  <p style="font-size:14px;color:#ccc;font-weight:600;">Playmobil U.S.S. Enterprise NCC-1701 · Bluetooth Controller</p>
+  <p style="font-size:11px;color:#555;">Ship name starts with <code style="color:#4a6cf7;">Pm_USSE_</code> · Must be served via localhost or HTTPS · <a href="https://github.com/VisionaiR3D/NCC1701_Playmobil" target="_blank" style="color:#4a6cf7;">BLE protocol source</a></p>
+</div>
+
+<!-- Footer credit -->
+<div style="text-align:center;padding:16px 20px;color:#444;font-size:11px;line-height:1.6;border-top:1px solid #111;margin-top:auto;">
+  Designed by Starfleet UX · Mauro Balcazar · April 8, 2026 · v1.0
+</div>
+
+<!-- Main controls (hidden until connected) -->
+<div class="controls" id="controls">
+
+  <!-- Tabs -->
+  <div class="tabs" id="tabs">
+    <div class="tab active" data-cat="audio">🔊 Audio</div>
+    <div class="tab" data-cat="static">💡 Static Lights</div>
+    <div class="tab" data-cat="pulse">✨ Pulsing Lights</div>
+    <div class="tab" data-cat="fx">⚡ Effects</div>
+    <div class="tab" data-cat="mixed">🎬 Combos</div>
+    <div class="tab" data-cat="system">⚙️ System</div>
+  </div>
+
+  <!-- Audio -->
+  <div class="cmd-section active" data-cat="audio">
+    <h3>Audio Commands</h3>
+    <div class="cmd-grid" id="audioGrid"></div>
+  </div>
+
+  <!-- Static Lights -->
+  <div class="cmd-section" data-cat="static">
+    <h3>Static Lights</h3>
+    <div class="cmd-grid" id="staticGrid"></div>
+  </div>
+
+  <!-- Pulsing Lights -->
+  <div class="cmd-section" data-cat="pulse">
+    <h3>Pulsing / Blinking Lights</h3>
+    <div class="cmd-grid" id="pulseGrid"></div>
+  </div>
+
+  <!-- Special Effects -->
+  <div class="cmd-section" data-cat="fx">
+    <h3>Special Effects (Light)</h3>
+    <div class="cmd-grid" id="fxGrid"></div>
+  </div>
+
+  <!-- Mixed -->
+  <div class="cmd-section" data-cat="mixed">
+    <h3>Mixed Light + Audio</h3>
+    <div class="cmd-grid" id="mixedGrid"></div>
+  </div>
+
+  <!-- System -->
+  <div class="cmd-section" data-cat="system">
+    <h3>System</h3>
+    <div class="cmd-grid" id="systemGrid"></div>
+  </div>
+
+  <!-- Brightness / Volume -->
+  <div class="slider-panel visible" id="sliderPanel">
+    <div class="slider-row">
+      <label>🔆 Brightness</label>
+      <input type="range" id="brightnessSlider" min="0" max="255" value="200">
+      <span class="val" id="brightnessVal">78%</span>
+    </div>
+    <div class="slider-row">
+      <label>🔊 Volume</label>
+      <input type="range" id="volumeSlider" min="0" max="255" value="200">
+      <span class="val" id="volumeVal">78%</span>
+    </div>
+  </div>
+</div>
+
+<!-- Log -->
+<div class="log-toggle" onclick="document.getElementById('log').classList.toggle('visible')">▾ Command Log</div>
+<div class="log" id="log"></div>
+
+<script>
+
+// ── BLE Constants ──
+const SERVICE_UUID = 'bc2f4cc6-aaef-4351-9034-d66268e328f0';
+const WRITE_CHAR   = '06d1e5e7-79ad-4a71-8faa-373789f7d93c';
+
+let device = null, characteristic = null, connected = false;
+
+// ── Command Definitions ──
+const COMMANDS = {
+  audio: [
+    { id: 1,  name: 'Bridge Ambient',       icon: '🌌', hex: 'AA0801C8FF', sub: 'Subtle bridge hum' },
+    { id: 2,  name: "Boatswain's Whistle",   icon: '📯', hex: 'AA0802C8FF', sub: 'Signal whistle' },
+    { id: 3,  name: 'Run Astrogator',        icon: '🧭', hex: 'AA0803C8FF', sub: 'Navigation scanner' },
+    { id: 4,  name: 'Dilithium Core Removed',icon: '⚠️', hex: 'AA0804C8FF', sub: 'Voice line' },
+    { id: 5,  name: 'Fire Photon Torpedo',   icon: '💥', hex: 'AA0805C8FF', sub: 'Torpedo fire sound' },
+    { id: 6,  name: 'This is Captain Kirk',  icon: '🎖️', hex: 'AA0806C8FF', sub: 'Voice line' },
+    { id: 7,  name: 'Red Alert Siren',       icon: '🚨', hex: 'AA0807C8FF', sub: 'Audio-only alert' },
+    { id: 8,  name: 'Live Long and Prosper',  icon: '🖖', hex: 'AA0808C8FF', sub: 'Voice line' },
+    { id: 9,  name: 'Dilithium Core Restored',icon: '✅', hex: 'AA0809C8FF', sub: 'Voice line' },
+    { id: 10, name: 'Enter Warp Drive',      icon: '🌀', hex: 'AA080AC8FF', sub: 'Warp confirmation' },
+    { id: 11, name: 'Transporter',           icon: '✨', hex: 'AA080BC8FF', sub: 'Dematerialization' },
+  ],
+  static: [
+    { id: 12, name: 'Console Lights',    icon: '🔵', hex: 'AA0601C8FF', sub: 'Bridge consoles blue', off: 'AA060100FF' },
+    { id: 14, name: 'Red Alert',         icon: '🔴', hex: 'AA0602C8FF', sub: 'Solid red alert',      off: 'AA060200FF' },
+    { id: 16, name: 'Photon Torpedo',    icon: '🟡', hex: 'AA0603C8FF', sub: 'Torpedo indicator',    off: 'AA060300FF' },
+    { id: 18, name: 'Side Console Blue', icon: '🔷', hex: 'AA0604C8FF', sub: 'Warp core blue',      off: 'AA060400FF' },
+    { id: 20, name: 'Side Console Red',  icon: '🔶', hex: 'AA0605C8FF', sub: 'Warp core red',       off: 'AA060500FF' },
+    { id: 22, name: 'Dilithium Core',    icon: '💎', hex: 'AA0606C8FF', sub: 'Core chamber',        off: 'AA060600FF' },
+    { id: 24, name: 'Warp Nacelles',     icon: '🛸', hex: 'AA0607C8FF', sub: 'Nacelle glow' },
+  ],
+  pulse: [
+    { id: 25, name: 'Console Lights',    icon: '🔵', hex: 'AA0401C8FF', sub: 'Blinking consoles',   off: 'AA040100FF' },
+    { id: 27, name: 'Red Alert',         icon: '🔴', hex: 'AA0402C8FF', sub: 'Flashing red alert',  off: 'AA040200FF' },
+    { id: 29, name: 'Photon Torpedo',    icon: '🟡', hex: 'AA0403C8FF', sub: 'Torpedo charging',    off: 'AA040300FF' },
+    { id: 31, name: 'Side Console Red',  icon: '🔶', hex: 'AA0404C8FF', sub: 'Flashing red core' },
+    { id: 32, name: 'Dilithium Core',    icon: '💎', hex: 'AA0406C8FF', sub: 'Glowing core' },
+    { id: 33, name: 'Warp Nacelles',     icon: '🛸', hex: 'AA0407C8FF', sub: 'Animated nacelles' },
+  ],
+  fx: [
+    { id: 34, name: 'Photon Torpedo x2', icon: '💥', hex: 'AA0501C8FF', sub: 'Double torpedo flash' },
+    { id: 35, name: 'Nacelle Warp Jump', icon: '⚡', hex: 'AA0507C8FF', sub: 'Nacelle jump lighting' },
+  ],
+  mixed: [
+    { id: 36, name: 'Red Alert Combo',      icon: '🚨', hex: 'AA070200FF', sub: 'Lights + siren' },
+    { id: 37, name: 'Photon Torpedo Combo',  icon: '💥', hex: 'AA070300FF', sub: 'Fire with light + sound' },
+    { id: 38, name: 'Warp Drive Combo',      icon: '🌀', hex: 'AA0701FFFF', sub: 'Warp lighting + audio' },
+  ],
+  system: [
+    { id: 39, name: 'Power Reset',  icon: '🔌', hex: 'AA070400FF', sub: 'All lights & audio off' },
+  ]
+};
+
+// ── Hex to Uint8Array ──
+function hexToBytes(hex) {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+  return bytes;
+}
+
+// ── Logging ──
+function log(msg, cls = '') {
+  const el = document.getElementById('log');
+  const d = document.createElement('div');
+  d.className = cls;
+  const ts = new Date().toLocaleTimeString();
+  d.textContent = `[${ts}] ${msg}`;
+  el.prepend(d);
+  if (el.children.length > 100) el.lastChild.remove();
+}
+
+// ── BLE Connection ──
+async function connectShip() {
+  const statusEl = document.getElementById('status');
+  try {
+    statusEl.textContent = 'SCANNING…';
+    statusEl.className = 'status connecting';
+    log('Scanning for Pm_USSE_ devices…', 'info');
+
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ namePrefix: 'Pm_USSE_' }],
+      optionalServices: [SERVICE_UUID]
+    });
+
+    device.addEventListener('gattserverdisconnected', onDisconnect);
+
+    statusEl.textContent = 'CONNECTING…';
+    log(`Found: ${device.name}`, 'ok');
+
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService(SERVICE_UUID);
+    characteristic = await service.getCharacteristic(WRITE_CHAR);
+
+    connected = true;
+    statusEl.textContent = 'CONNECTED';
+    statusEl.className = 'status connected';
+    log(`Connected to ${device.name}`, 'ok');
+
+    // Give GATT stack a moment to settle before sending commands
+    await new Promise(r => setTimeout(r, 500));
+
+    document.getElementById('connectPanel').style.display = 'none';
+    document.getElementById('controls').style.display = 'flex';
+  } catch (e) {
+    statusEl.textContent = 'DISCONNECTED';
+    statusEl.className = 'status';
+    log(`Error: ${e.message}`, 'err');
+  }
+}
+
+function onDisconnect() {
+  connected = false;
+  characteristic = null;
+  document.getElementById('status').textContent = 'DISCONNECTED';
+  document.getElementById('status').className = 'status';
+  document.getElementById('connectPanel').style.display = 'flex';
+  document.getElementById('controls').style.display = 'none';
+  log('Disconnected from ship', 'err');
+}
+
+function toggleConnection() {
+  if (connected && device && device.gatt.connected) {
+    device.gatt.disconnect();
+  } else if (!connected) {
+    connectShip();
+  }
+}
+
+// ── Send Command ──
+async function sendCmd(hex, name) {
+  if (!connected || !characteristic) {
+    log('Not connected', 'err');
+    return;
+  }
+  try {
+    const bytes = hexToBytes(hex);
+    await characteristic.writeValue(bytes);
+    log(`→ ${name}  [${hex}]`, 'ok');
+  } catch (e) {
+    log(`Send failed: ${e.message}`, 'err');
+  }
+}
+
+// ── Build intensity-aware hex ──
+function buildHex(baseHex, intensity) {
+  // Replace byte 4 (index 6-7) with intensity hex
+  const intHex = intensity.toString(16).padStart(2, '0').toUpperCase();
+  return baseHex.substring(0, 6) + intHex + 'FF';
+}
+
+// ── Build UI ──
+function buildButtons() {
+  for (const [cat, cmds] of Object.entries(COMMANDS)) {
+    const grid = document.getElementById(cat + 'Grid');
+    if (!grid) continue;
+    cmds.forEach(cmd => {
+      // ON button
+      const btn = document.createElement('div');
+      btn.className = `cmd-btn ${cmd.off ? 'light' : cat === 'audio' ? 'audio' : cat === 'mixed' ? 'mixed' : 'light'}`;
+      btn.innerHTML = `<span class="icon">${cmd.icon}</span><span class="label">${cmd.name}</span><span class="sub">${cmd.sub}</span>`;
+      btn.addEventListener('click', (e) => {
+        ripple(e, btn);
+        // For light commands, use brightness slider; for audio, use volume slider
+        const isAudio = cat === 'audio';
+        const slider = isAudio ? document.getElementById('volumeSlider') : document.getElementById('brightnessSlider');
+        const hex = (cat === 'mixed' || cat === 'system' || cat === 'fx')
+          ? cmd.hex
+          : buildHex(cmd.hex, parseInt(slider.value));
+        sendCmd(hex, cmd.name);
+      });
+      grid.appendChild(btn);
+
+      // OFF button (if applicable)
+      if (cmd.off) {
+        const offBtn = document.createElement('div');
+        offBtn.className = 'cmd-btn off';
+        offBtn.innerHTML = `<span class="icon">${cmd.icon}</span><span class="label label-off">${cmd.name} OFF</span><span class="sub">Turn off</span>`;
+        offBtn.addEventListener('click', (e) => {
+          ripple(e, offBtn);
+          sendCmd(cmd.off, cmd.name + ' OFF');
+        });
+        grid.appendChild(offBtn);
+      }
+    });
+  }
+}
+
+// ── Ripple effect ──
+function ripple(e, btn) {
+  const r = document.createElement('span');
+  r.className = 'ripple';
+  const rect = btn.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height);
+  r.style.width = r.style.height = size + 'px';
+  r.style.left = (e.clientX - rect.left - size / 2) + 'px';
+  r.style.top = (e.clientY - rect.top - size / 2) + 'px';
+  btn.appendChild(r);
+  setTimeout(() => r.remove(), 500);
+}
+
+// ── Tabs ──
+document.getElementById('tabs').addEventListener('click', (e) => {
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  const cat = tab.dataset.cat;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+  document.querySelectorAll('.cmd-section').forEach(s => s.classList.toggle('active', s.dataset.cat === cat));
+});
+
+// ── Sliders ──
+document.getElementById('brightnessSlider').addEventListener('input', (e) => {
+  document.getElementById('brightnessVal').textContent = Math.round(e.target.value / 255 * 100) + '%';
+});
+document.getElementById('volumeSlider').addEventListener('input', (e) => {
+  document.getElementById('volumeVal').textContent = Math.round(e.target.value / 255 * 100) + '%';
+});
+
+// ── Init ──
+buildButtons();
+</script>
+</body>
+</html>
